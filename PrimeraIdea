@@ -1,0 +1,72 @@
+import pandas as pd
+import yfinance as yf
+import talib
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score
+
+# Función para obtener datos históricos y calcular indicadores técnicos
+def get_technical_indicators(pair, period,interval):
+    data = yf.download(pair, period=period,interval=interval)
+    # Imprimir todos los nombres de las columnas
+    print(data.columns)
+    # Verificar si la columna "Close" existe
+    if "Close" in data.columns:
+        prices = data["Close"]
+    else:
+        raise ValueError("La columna 'Close' no existe en los datos descargados.")
+
+    # Calcular indicadores técnicos con TA-Lib
+    sma = talib.SMA(prices, timeperiod=7)
+    rsi = talib.RSI(prices, timeperiod=7)
+    macd, signal, _ = talib.MACD(prices, fastperiod=12, slowperiod=26, signalperiod=9)
+
+    # Crear un DataFrame con los indicadores
+    indicators = pd.DataFrame({"SMA": sma, "RSI": rsi, "MACD": macd, "Signal": signal})
+
+    return indicators
+
+# Ejemplo de pares de divisas y período de tiempo
+pair = "EURUSD=X"
+period = "7d"
+interval="1m"
+# Obtener datos históricos y calcular indicadores técnicos
+indicators = get_technical_indicators(pair, period,interval)
+
+# Simular etiquetas de compra (1) y venta (0) para propósitos de ejemplo
+indicators["Label"] = (indicators["Close"].shift(-1) > indicators["Close"]).astype(int)
+
+
+
+# Eliminar la última fila para evitar NaN en las etiquetas
+indicators = indicators.dropna()
+
+# Separar características (X) y etiquetas (y)
+X = indicators.drop("Label", axis=1)
+y = indicators["Label"]
+
+# Dividir los datos en conjuntos de entrenamiento y prueba
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Crear y entrenar el modelo de árbol de decisión
+model = DecisionTreeClassifier(random_state=42)
+model.fit(X_train, y_train)
+
+# Realizar predicciones en el conjunto de prueba
+predictions = model.predict(X_test)
+
+# Evaluar la precisión del modelo
+accuracy = accuracy_score(y_test, predictions)
+print(f"Accuracy del modelo: {accuracy:.2%}")
+
+# Ejemplo de decisión de trading basada en la predicción
+if predictions[-1] == 1:
+    print("Abrir posición de compra")
+    # Lógica para abrir una posición de compra
+    # Con un stop loss a 10 pips por debajo del precio actual
+    # Con un take profit a 50 pips por encima del precio actual
+else:
+    print("Abrir posición de venta")
+    # Lógica para abrir una posición de venta
+    # Con un stop loss a 10 pips por encima del precio actual
+    # Con un take profit a 50 pips por debajo del precio actual
